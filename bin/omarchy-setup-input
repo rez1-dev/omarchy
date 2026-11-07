@@ -1,14 +1,14 @@
 #!/bin/bash
 
-# omarchy:summary=Select input methods for Japanese, Korean, or Chinese typing
-# omarchy:args=[mozc|hangul|pinyin|chewing|cangjie5]
+# omarchy:summary=Select input methods for Japanese, Korean, Chinese, or Bengali typing
+# omarchy:args=[mozc|hangul|pinyin|chewing|cangjie5|openbangla]
 # omarchy:examples=omarchy setup input | omarchy setup input mozc
 # omarchy:requires-sudo=true
 
 set -euo pipefail
 
 if (( $# > 1 )); then
-  echo "Usage: omarchy setup input [mozc|hangul|pinyin|chewing|cangjie5]" >&2
+  echo "Usage: omarchy setup input [mozc|hangul|pinyin|chewing|cangjie5|openbangla]" >&2
   exit 1
 fi
 
@@ -19,11 +19,18 @@ if [[ -z $method ]]; then
 fi
 
 case "$method" in
-  mozc | hangul | pinyin | chewing | cangjie5) ;;
+  mozc | hangul | pinyin | chewing | cangjie5 | openbangla) ;;
   *) echo "Unknown input method: $method" >&2; exit 1 ;;
 esac
 
-mapfile -t packages < <(jq -r --arg method "$method" '.[$method].packages[]' "$OMARCHY_PATH/default/input-methods/presets.json")
-omarchy-pkg-add "${packages[@]}"
+presets="$OMARCHY_PATH/default/input-methods/presets.json"
+mapfile -t packages < <(jq -r --arg method "$method" '.[$method].packages[]' "$presets")
+
+# Engines outside the base package set and the official repos come from the AUR.
+if [[ $(jq -r --arg method "$method" '.[$method].aur // false' "$presets") == "true" ]]; then
+  omarchy-pkg-aur-add "${packages[@]}"
+else
+  omarchy-pkg-add "${packages[@]}"
+fi
 /usr/bin/python3 "$OMARCHY_PATH/default/input-methods/typing_setup.py" add "$method"
 echo "Input method added. Use Super+I or the Japanese/Korean input key to switch; existing custom Fcitx keys are preserved."
